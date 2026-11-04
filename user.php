@@ -1,3 +1,4 @@
+
 <?php
 session_start();
 
@@ -5,11 +6,12 @@ session_start();
 $_SESSION['users'] = $_SESSION['users'] ?? [];
 $users = &$_SESSION['users'];
 
+// Escape output safely.
 function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-// Create a CSRF token for form submissions.
+// Create CSRF token.
 if (empty($_SESSION['user_csrf_token'])) {
     $_SESSION['user_csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -18,25 +20,38 @@ $message = '';
 $error = '';
 $showModal = false;
 
+// Handle form submissions.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
     $token = $_POST['csrf_token'] ?? '';
 
-    if (!hash_equals($_SESSION['user_csrf_token'], $token)) {
+    if (
+        !is_string($token) ||
+        !hash_equals($_SESSION['user_csrf_token'], $token)
+    ) {
         $error = 'Your session token is invalid. Please refresh the page and try again.';
+
     } else {
+
         $action = $_POST['action'] ?? '';
 
+        // ADD USER
         if ($action === 'add_user') {
+
             $name = trim($_POST['full_name'] ?? '');
             $office = trim($_POST['office'] ?? '');
 
             if ($name === '') {
+
                 $error = 'Please enter the user\'s full name.';
                 $showModal = true;
+
             } else {
+
                 $duplicate = false;
 
                 foreach ($users as $existingUser) {
+
                     if (
                         mb_strtolower(trim($existingUser['full_name'] ?? '')) ===
                         mb_strtolower($name)
@@ -47,9 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($duplicate) {
+
                     $error = 'This user is already in the list.';
                     $showModal = true;
+
                 } else {
+
                     $users[] = [
                         'id' => bin2hex(random_bytes(8)),
                         'full_name' => $name,
@@ -62,44 +80,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                 }
             }
+
+        // DELETE USER
         } elseif ($action === 'delete_user') {
+
             $id = (string)($_POST['user_id'] ?? '');
+
             $before = count($users);
 
-            $users = array_values(array_filter($users, function ($user) use ($id) {
-                return (string)($user['id'] ?? '') !== $id;
-            }));
+            $users = array_values(array_filter(
+                $users,
+                function ($user) use ($id) {
+                    return (string)($user['id'] ?? '') !== $id;
+                }
+            ));
 
             $_SESSION['users'] = $users;
 
             if (count($users) < $before) {
+
                 header('Location: user.php?deleted=1');
                 exit;
-            }
 
-            $error = 'The selected user could not be found.';
+            } else {
+
+                $error = 'The selected user could not be found.';
+            }
         }
     }
 }
 
+// Get updated users.
 $users = array_values($_SESSION['users']);
 
+// Success messages.
 if (isset($_GET['added'])) {
+
     $message = 'User added successfully.';
+
 } elseif (isset($_GET['deleted'])) {
+
     $message = 'User removed from the list.';
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Assigned Users - Inventory System</title>
+    <meta charset="UTF-8">
 
-<link rel="stylesheet" href="user.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Assigned Users | Inventory System</title>
+
+    <link rel="stylesheet" href="user.css">
+
 </head>
 
 <body>
@@ -108,11 +145,16 @@ if (isset($_GET['added'])) {
 
 <aside class="sidebar">
 
-    <div class="brand">Inventory System</div>
+    <div class="brand">
+        Inventory System
+    </div>
 
-    <div class="section-label">Main Menu</div>
+    <div class="section-label">
+        Main Menu
+    </div>
 
     <nav>
+
         <a class="nav-link" href="index.php">
             <span>▦</span> Dashboard
         </a>
@@ -124,6 +166,7 @@ if (isset($_GET['added'])) {
         <a class="nav-link active" href="user.php">
             <span>♙</span> Assigned Users
         </a>
+
     </nav>
 
 </aside>
@@ -132,34 +175,45 @@ if (isset($_GET['added'])) {
 
 <main class="main">
 
+    <!-- HEADER -->
+
     <header class="header">
 
-        <h1>Assigned Users</h1>
+        <h1>Assigned User</h1>
 
-        <button type="button" class="button" onclick="openAddUserModal()">
-            + Add User
+        <button
+            type="button"
+            class="button"
+            onclick="openAddUserModal()"
+        >
+            Create User
         </button>
 
     </header>
 
     <p class="muted">
-        Add and manage the list of people who can be assigned to computers and printers.
+        Add and manage the list of people who can be assigned
+        to computers and printers.
     </p>
 
     <!-- SUCCESS MESSAGE -->
 
     <?php if ($message !== ''): ?>
+
         <div class="notice">
             <?= e($message) ?>
         </div>
+
     <?php endif; ?>
 
     <!-- ERROR MESSAGE -->
 
     <?php if ($error !== ''): ?>
+
         <div class="error">
             <?= e($error) ?>
         </div>
+
     <?php endif; ?>
 
     <!-- USER LIST -->
@@ -170,7 +224,11 @@ if (isset($_GET['added'])) {
 
             <h2>User List</h2>
 
-            <span class="count">
+            <span
+                class="muted"
+                style="margin:0"
+                id="recordCount"
+            >
                 <?= count($users) ?>
                 user<?= count($users) === 1 ? '' : 's' ?>
             </span>
@@ -181,83 +239,120 @@ if (isset($_GET['added'])) {
 
             <table>
 
+                <!-- TABLE HEADER -->
+
                 <thead>
+
                     <tr>
-                        <th>#</th>
+
                         <th>Full Name</th>
+
                         <th>Office / Division</th>
+
                         <th>Action</th>
+
                     </tr>
+
                 </thead>
+
+                <!-- TABLE BODY -->
 
                 <tbody>
 
-                <?php if (!$users): ?>
+                <?php if (empty($users)): ?>
+
+                    <!-- EMPTY TABLE -->
 
                     <tr>
-                        <td colspan="4" class="empty">
-                            No users added yet. Click the Add User button to add your first user.
+
+                        <td colspan="3" class="empty">
+
+                            No users added yet.
+                            Click the Create User button to add your first user.
+
                         </td>
+
                     </tr>
 
                 <?php else: ?>
 
-                    <?php foreach ($users as $index => $user): ?>
+                    <!-- DISPLAY USERS -->
 
-                    <tr>
+                    <?php foreach ($users as $user): ?>
 
-                        <td><?= $index + 1 ?></td>
+                        <tr>
 
-                        <td>
-                            <strong>
-                                <?= e($user['full_name'] ?? '') ?>
-                            </strong>
-                        </td>
+                            <!-- FULL NAME -->
 
-                        <td>
-                            <?= e(
-                                ($user['office'] ?? '') !== ''
-                                ? $user['office']
-                                : '—'
-                            ) ?>
-                        </td>
+                            <td>
 
-                        <td>
+                                <strong>
+                                    <?= e($user['full_name'] ?? '') ?>
+                                </strong>
 
-                            <form
-                                method="POST"
-                                action="user.php"
-                                onsubmit="return confirm('Remove this user from the list?');"
-                                style="margin:0"
-                            >
+                            </td>
 
-                                <input
-                                    type="hidden"
-                                    name="csrf_token"
-                                    value="<?= e($_SESSION['user_csrf_token']) ?>"
+                            <!-- OFFICE / DIVISION -->
+
+                            <td>
+
+                                <?= e(
+                                    ($user['office'] ?? '') !== ''
+                                        ? $user['office']
+                                        : '—'
+                                ) ?>
+
+                            </td>
+
+                            <!-- ACTION -->
+
+                            <td>
+
+                                <form
+                                    method="POST"
+                                    action="user.php"
+                                    onsubmit="return confirm('Remove this user from the list?');"
+                                    style="margin:0"
                                 >
 
-                                <input
-                                    type="hidden"
-                                    name="action"
-                                    value="delete_user"
-                                >
+                                    <!-- CSRF TOKEN -->
 
-                                <input
-                                    type="hidden"
-                                    name="user_id"
-                                    value="<?= e($user['id'] ?? '') ?>"
-                                >
+                                    <input
+                                        type="hidden"
+                                        name="csrf_token"
+                                        value="<?= e($_SESSION['user_csrf_token']) ?>"
+                                    >
 
-                                <button type="submit" class="button danger">
-                                    Remove
-                                </button>
+                                    <!-- ACTION -->
 
-                            </form>
+                                    <input
+                                        type="hidden"
+                                        name="action"
+                                        value="delete_user"
+                                    >
 
-                        </td>
+                                    <!-- USER ID -->
 
-                    </tr>
+                                    <input
+                                        type="hidden"
+                                        name="user_id"
+                                        value="<?= e($user['id'] ?? '') ?>"
+                                    >
+
+                                    <!-- REMOVE BUTTON -->
+
+                                    <button
+                                        type="submit"
+                                        class="button danger"
+                                    >
+                                        Remove
+                                    </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
 
                     <?php endforeach; ?>
 
@@ -281,11 +376,20 @@ if (isset($_GET['added'])) {
     onclick="handleModalOverlayClick(event)"
 >
 
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+    >
+
+        <!-- MODAL HEADER -->
 
         <div class="modal-header">
 
-            <h2 id="modalTitle">Add New User</h2>
+            <h2 id="modalTitle">
+                Add New User
+            </h2>
 
             <button
                 type="button"
@@ -298,9 +402,17 @@ if (isset($_GET['added'])) {
 
         </div>
 
-        <form method="POST" action="user.php" class="modal-form">
+        <!-- USER FORM -->
+
+        <form
+            method="POST"
+            action="user.php"
+            class="modal-form"
+        >
 
             <div class="modal-body">
+
+                <!-- CSRF TOKEN -->
 
                 <input
                     type="hidden"
@@ -308,30 +420,42 @@ if (isset($_GET['added'])) {
                     value="<?= e($_SESSION['user_csrf_token']) ?>"
                 >
 
+                <!-- ACTION -->
+
                 <input
                     type="hidden"
                     name="action"
                     value="add_user"
                 >
 
+                <!-- FULL NAME -->
+
                 <div class="field">
 
                     <label for="full_name">
-                        Full Name <span style="color:#ef4444">*</span>
+
+                        Full Name
+
+                        <span style="color:#ef4444">*</span>
+
                     </label>
 
                     <input
                         type="text"
                         id="full_name"
                         name="full_name"
-                        placeholder="Enter user's full name"
                         maxlength="150"
                         required
                     >
 
                 </div>
 
-                <div class="field" style="margin-top:17px;">
+                <!-- OFFICE / DIVISION -->
+
+                <div
+                    class="field"
+                    style="margin-top:17px;"
+                >
 
                     <label for="office">
                         Office / Division
@@ -341,13 +465,14 @@ if (isset($_GET['added'])) {
                         type="text"
                         id="office"
                         name="office"
-                        placeholder="e.g. Administrative Office"
                         maxlength="150"
                     >
 
                 </div>
 
             </div>
+
+            <!-- MODAL FOOTER -->
 
             <div class="modal-footer">
 
@@ -359,8 +484,11 @@ if (isset($_GET['added'])) {
                     Cancel
                 </button>
 
-                <button type="submit" class="button">
-                    + Add User
+                <button
+                    type="submit"
+                    class="button"
+                >
+                    Add User
                 </button>
 
             </div>
@@ -375,39 +503,60 @@ if (isset($_GET['added'])) {
 
 <script>
 
+// Get modal.
 const addUserModal = document.getElementById('addUserModal');
 
+// Open modal.
 function openAddUserModal() {
+
     addUserModal.classList.add('show');
 
     setTimeout(function() {
+
         document.getElementById('full_name').focus();
+
     }, 100);
+
 }
 
+// Close modal.
 function closeAddUserModal() {
+
     addUserModal.classList.remove('show');
+
 }
 
+// Close modal when clicking outside.
 function handleModalOverlayClick(event) {
+
     if (event.target === addUserModal) {
+
         closeAddUserModal();
+
     }
+
 }
 
 // Close modal using Escape key.
 document.addEventListener('keydown', function(event) {
+
     if (event.key === 'Escape') {
+
         closeAddUserModal();
+
     }
+
 });
 
 // Reopen modal if there is a validation error.
 <?php if ($showModal): ?>
+
     openAddUserModal();
+
 <?php endif; ?>
 
 </script>
 
 </body>
+
 </html>
