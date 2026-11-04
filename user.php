@@ -1,10 +1,7 @@
 
 <?php
 session_start();
-
-// Keep the user list in the same PHP session used by record.php.
-$_SESSION['users'] = $_SESSION['users'] ?? [];
-$users = &$_SESSION['users'];
+require_once 'db.php';
 
 // Escape output safely.
 function e($value): string {
@@ -47,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $showModal = true;
 
             } else {
+<<<<<<< HEAD
 
                 $duplicate = false;
 
@@ -75,14 +73,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
 
                     $_SESSION['users'] = array_values($users);
+=======
+                try {
+                    $stmt = $pdo->prepare("INSERT INTO users (full_name, office) VALUES (?, ?)");
+                    $stmt->execute([$name, $office]);
+>>>>>>> 7c8d022 (adding database connections (no db.php file))
 
                     header('Location: user.php?added=1');
                     exit;
+                } catch (PDOException $e) {
+                    // PostgreSQL error code 23505 stands for unique constraint violation (duplicate user)
+                    if ($e->getCode() == '23505') {
+                        $error = 'This user is already in the list.';
+                    } else {
+                        $error = 'Database error: ' . $e->getMessage();
+                    }
+                    $showModal = true;
                 }
             }
 
         // DELETE USER
         } elseif ($action === 'delete_user') {
+<<<<<<< HEAD
 
             $id = (string)($_POST['user_id'] ?? '');
 
@@ -99,6 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (count($users) < $before) {
 
+=======
+            $id = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+
+            if ($id) {
+                $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                $stmt->execute([$id]);
+
+>>>>>>> 7c8d022 (adding database connections (no db.php file))
                 header('Location: user.php?deleted=1');
                 exit;
 
@@ -110,8 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+<<<<<<< HEAD
 // Get updated users.
 $users = array_values($_SESSION['users']);
+=======
+// Fetch all users directly from the PostgreSQL database
+$stmt = $pdo->query("SELECT * FROM users ORDER BY full_name ASC");
+$users = $stmt->fetchAll();
+>>>>>>> 7c8d022 (adding database connections (no db.php file))
 
 // Success messages.
 if (isset($_GET['added'])) {

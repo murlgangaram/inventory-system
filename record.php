@@ -1,10 +1,6 @@
 <?php
 session_start();
-
-$_SESSION['computers'] = $_SESSION['computers'] ?? [];
-$_SESSION['printers'] = $_SESSION['printers'] ?? [];
-$_SESSION['users'] = $_SESSION['users'] ?? [];
-$users = array_values($_SESSION['users']);
+require_once 'db.php';
 
 function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
@@ -25,31 +21,30 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     ($_POST['form_type'] ?? '') === 'update_computer'
 ) {
-    $index = filter_input(INPUT_POST, 'record_index', FILTER_VALIDATE_INT);
+    $id = filter_input(INPUT_POST, 'record_id', FILTER_VALIDATE_INT);
 
-    $computer = [
-        'computer_name' => trim($_POST['computer_name'] ?? ''),
-        'office' => trim($_POST['office'] ?? ''),
-        'ram' => trim($_POST['ram'] ?? ''),
-        'cpu' => trim($_POST['cpu'] ?? ''),
-        'ssd' => trim($_POST['ssd'] ?? ''),
-        'hd' => trim($_POST['hd'] ?? ''),
-        'brand' => trim($_POST['brand'] ?? ''),
-        'model' => trim($_POST['model'] ?? ''),
-        'serial_number' => trim($_POST['serial_number'] ?? ''),
-        'mac_address' => trim($_POST['mac_address'] ?? ''),
-        'assigned_to' => trim($_POST['assigned_to'] ?? ''),
-        'remarks' => trim($_POST['remarks'] ?? ''),
-        'status' => trim($_POST['status'] ?? 'Working')
-    ];
+    $computer_name = trim($_POST['computer_name'] ?? '');
+    $office = trim($_POST['office'] ?? '');
 
-    if (
-        $index !== false &&
-        isset($_SESSION['computers'][$index]) &&
-        $computer['computer_name'] !== '' &&
-        $computer['office'] !== ''
-    ) {
-        $_SESSION['computers'][$index] = $computer;
+    if ($id && $computer_name !== '' && $office !== '') {
+        $stmt = $pdo->prepare("UPDATE computers SET computer_name = ?, office = ?, ram = ?, cpu = ?, ssd = ?, hd = ?, brand = ?, model = ?, serial_number = ?, mac_address = ?, assigned_to = ?, remarks = ?, status = ? WHERE id = ?");
+        $stmt->execute([
+            $computer_name,
+            $office,
+            trim($_POST['ram'] ?? ''),
+            trim($_POST['cpu'] ?? ''),
+            trim($_POST['ssd'] ?? ''),
+            trim($_POST['hd'] ?? ''),
+            trim($_POST['brand'] ?? ''),
+            trim($_POST['model'] ?? ''),
+            trim($_POST['serial_number'] ?? ''),
+            trim($_POST['mac_address'] ?? ''),
+            trim($_POST['assigned_to'] ?? ''),
+            trim($_POST['remarks'] ?? ''),
+            trim($_POST['status'] ?? 'Working'),
+            $id
+        ]);
+
         header('Location: record.php?updated=computer#inventory-list');
         exit;
     }
@@ -62,25 +57,24 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     ($_POST['form_type'] ?? '') === 'update_printer'
 ) {
-    $index = filter_input(INPUT_POST, 'record_index', FILTER_VALIDATE_INT);
+    $id = filter_input(INPUT_POST, 'record_id', FILTER_VALIDATE_INT);
 
-    $printer = [
-        'printer_name' => trim($_POST['printer_name'] ?? ''),
-        'brand_model' => trim($_POST['brand_model'] ?? ''),
-        'serial_number' => trim($_POST['serial_number'] ?? ''),
-        'assigned_to' => trim($_POST['assigned_to'] ?? ''),
-        'office' => trim($_POST['office'] ?? ''),
-        'remarks' => trim($_POST['remarks'] ?? ''),
-        'status' => trim($_POST['status'] ?? 'Working')
-    ];
+    $printer_name = trim($_POST['printer_name'] ?? '');
+    $office = trim($_POST['office'] ?? '');
 
-    if (
-        $index !== false &&
-        isset($_SESSION['printers'][$index]) &&
-        $printer['printer_name'] !== '' &&
-        $printer['office'] !== ''
-    ) {
-        $_SESSION['printers'][$index] = $printer;
+    if ($id && $printer_name !== '' && $office !== '') {
+        $stmt = $pdo->prepare("UPDATE printers SET printer_name = ?, brand_model = ?, serial_number = ?, assigned_to = ?, office = ?, remarks = ?, status = ? WHERE id = ?");
+        $stmt->execute([
+            $printer_name,
+            trim($_POST['brand_model'] ?? ''),
+            trim($_POST['serial_number'] ?? ''),
+            trim($_POST['assigned_to'] ?? ''),
+            $office,
+            trim($_POST['remarks'] ?? ''),
+            trim($_POST['status'] ?? 'Working'),
+            $id
+        ]);
+
         header('Location: record.php?updated=printer#inventory-list');
         exit;
     }
@@ -93,24 +87,27 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     ($_POST['form_type'] ?? '') === 'computer'
 ) {
-    $computer = [
-        'computer_name' => trim($_POST['computer_name'] ?? ''),
-        'office' => trim($_POST['office'] ?? ''),
-        'ram' => trim($_POST['ram'] ?? ''),
-        'cpu' => trim($_POST['cpu'] ?? ''),
-        'ssd' => trim($_POST['ssd'] ?? ''),
-        'hd' => trim($_POST['hd'] ?? ''),
-        'brand' => trim($_POST['brand'] ?? ''),
-        'model' => trim($_POST['model'] ?? ''),
-        'serial_number' => trim($_POST['serial_number'] ?? ''),
-        'mac_address' => trim($_POST['mac_address'] ?? ''),
-        'assigned_to' => trim($_POST['assigned_to'] ?? ''),
-        'remarks' => trim($_POST['remarks'] ?? ''),
-        'status' => trim($_POST['status'] ?? 'Working')
-    ];
+    $computer_name = trim($_POST['computer_name'] ?? '');
+    $office = trim($_POST['office'] ?? '');
 
-    if ($computer['computer_name'] !== '' && $computer['office'] !== '') {
-        $_SESSION['computers'][] = $computer;
+    if ($computer_name !== '' && $office !== '') {
+        $stmt = $pdo->prepare("INSERT INTO computers (computer_name, office, ram, cpu, ssd, hd, brand, model, serial_number, mac_address, assigned_to, remarks, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $computer_name,
+            $office,
+            trim($_POST['ram'] ?? ''),
+            trim($_POST['cpu'] ?? ''),
+            trim($_POST['ssd'] ?? ''),
+            trim($_POST['hd'] ?? ''),
+            trim($_POST['brand'] ?? ''),
+            trim($_POST['model'] ?? ''),
+            trim($_POST['serial_number'] ?? ''),
+            trim($_POST['mac_address'] ?? ''),
+            trim($_POST['assigned_to'] ?? ''),
+            trim($_POST['remarks'] ?? ''),
+            trim($_POST['status'] ?? 'Working')
+        ]);
+
         header('Location: record.php?added=computer#inventory-list');
         exit;
     }
@@ -123,21 +120,20 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     ($_POST['form_type'] ?? '') === 'printer'
 ) {
-    $printer = [
-        'printer_name' => trim($_POST['printer_name'] ?? ''),
-        'brand_model' => trim($_POST['brand_model'] ?? ''),
-        'serial_number' => trim($_POST['serial_number'] ?? ''),
-        'assigned_to' => trim($_POST['assigned_to'] ?? ''),
-        'office' => trim($_POST['office'] ?? ''),
-        'remarks' => trim($_POST['remarks'] ?? ''),
-        'status' => trim($_POST['status'] ?? 'Working')
-    ];
+    $printer_name = trim($_POST['printer_name'] ?? '');
+    $office = trim($_POST['office'] ?? '');
 
-    if (
-        $printer['printer_name'] !== '' &&
-        $printer['office'] !== ''
-    ) {
-        $_SESSION['printers'][] = $printer;
+    if ($printer_name !== '' && $office !== '') {
+        $stmt = $pdo->prepare("INSERT INTO printers (printer_name, brand_model, serial_number, assigned_to, office, remarks, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $printer_name,
+            trim($_POST['brand_model'] ?? ''),
+            trim($_POST['serial_number'] ?? ''),
+            trim($_POST['assigned_to'] ?? ''),
+            $office,
+            trim($_POST['remarks'] ?? ''),
+            trim($_POST['status'] ?? 'Working')
+        ]);
 
         header('Location: record.php?added=printer#inventory-list');
         exit;
@@ -146,8 +142,13 @@ if (
     $error = 'Please enter the Printer Name and select an Office.';
 }
 
-$computers = $_SESSION['computers'];
-$printers = $_SESSION['printers'];
+// Fetch users for assignment dropdowns
+$usersStmt = $pdo->query("SELECT * FROM users ORDER BY full_name ASC");
+$users = $usersStmt->fetchAll();
+
+// Fetch computers and printers from the PostgreSQL database
+$computers = $pdo->query("SELECT * FROM computers ORDER BY id DESC")->fetchAll();
+$printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -241,8 +242,7 @@ $printers = $_SESSION['printers'];
 
         <div class="notice">
             <?= $_GET['added'] === 'printer' ? 'Printer' : 'Computer' ?>
-            record added successfully. These records are temporary until
-            connected to a database.
+            record added successfully to the database.
         </div>
 
     <?php endif; ?>
@@ -315,7 +315,7 @@ $printers = $_SESSION['printers'];
 
                 <tbody id="recordsBody">
 
-                <?php foreach ($computers as $index => $pc): ?>
+                <?php foreach ($computers as $pc): ?>
 
                     <tr>
                         <td>Computer</td>
@@ -390,7 +390,7 @@ $printers = $_SESSION['printers'];
                                 type="button"
                                 class="button edit-button"
                                 data-type="computer"
-                                data-index="<?= (int)$index ?>"
+                                data-id="<?= (int)$pc['id'] ?>"
                                 data-record="<?= e(json_encode($pc, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>"
                             >
                                 Edit
@@ -400,7 +400,7 @@ $printers = $_SESSION['printers'];
 
                 <?php endforeach; ?>
 
-                <?php foreach ($printers as $index => $printer): ?>
+                <?php foreach ($printers as $printer): ?>
 
                     <tr>
                         <td>Printer</td>
@@ -462,7 +462,7 @@ $printers = $_SESSION['printers'];
                                 type="button"
                                 class="button edit-button"
                                 data-type="printer"
-                                data-index="<?= (int)$index ?>"
+                                data-id="<?= (int)$printer['id'] ?>"
                                 data-record="<?= e(json_encode($printer, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>"
                             >
                                 Edit
@@ -868,9 +868,7 @@ $printers = $_SESSION['printers'];
 
                 <div class="field-grid">
 
-                    <!-- PRINTER NAME -->
                     <div class="field">
-
                         <label for="printer_name">
                             Printer Name <span class="required">*</span>
                         </label>
@@ -882,12 +880,9 @@ $printers = $_SESSION['printers'];
                             placeholder="Enter printer name"
                             required
                         >
-
                     </div>
 
-                    <!-- BRAND / MODEL -->
                     <div class="field">
-
                         <label for="brand_model">
                             Brand / Model
                         </label>
@@ -898,12 +893,9 @@ $printers = $_SESSION['printers'];
                             name="brand_model"
                             placeholder="Enter brand or model"
                         >
-
                     </div>
 
-                    <!-- SERIAL NUMBER -->
                     <div class="field">
-
                         <label for="printer_serial">
                             Serial Number
                         </label>
@@ -914,12 +906,9 @@ $printers = $_SESSION['printers'];
                             name="serial_number"
                             placeholder="Enter serial number"
                         >
-
                     </div>
 
-                    <!-- ASSIGNED USER -->
                     <div class="field">
-
                         <label for="printer_user">
                             Assigned User
                         </label>
@@ -935,12 +924,9 @@ $printers = $_SESSION['printers'];
                             <?php endforeach; ?>
 
                         </select>
-
                     </div>
 
-                    <!-- OFFICE -->
                     <div class="field">
-
                         <label for="printer_office">
                             Office <span class="required">*</span>
                         </label>
@@ -960,12 +946,9 @@ $printers = $_SESSION['printers'];
                             <option value="Other">Other</option>
 
                         </select>
-
                     </div>
 
-                    <!-- REMARKS -->
                     <div class="field" style="grid-column: 1 / -1;">
-
                         <label for="printer_remarks">Remarks</label>
 
                         <textarea
@@ -974,12 +957,9 @@ $printers = $_SESSION['printers'];
                             rows="3"
                             placeholder="Enter remarks or additional information"
                         ></textarea>
-
                     </div>
 
-                    <!-- STATUS -->
                     <div class="field">
-
                         <label for="printer_status">
                             Status
                         </label>
@@ -990,12 +970,10 @@ $printers = $_SESSION['printers'];
                             <option value="For Checking">For Checking</option>
                             <option value="Retired">Retired</option>
                         </select>
-
                     </div>
 
                 </div>
 
-                <!-- FORM BUTTONS -->
                 <div class="form-actions">
 
                     <button
@@ -1050,7 +1028,7 @@ $printers = $_SESSION['printers'];
             <form method="POST" action="record.php" id="editForm">
 
                 <input type="hidden" name="form_type" id="editFormType">
-                <input type="hidden" name="record_index" id="editRecordIndex">
+                <input type="hidden" name="record_id" id="editRecordId">
 
                 <!-- COMPUTER EDIT FIELDS -->
                 <div class="field-grid" id="editComputerFields">
@@ -1730,7 +1708,6 @@ document.getElementById('closePrinterModal')
 document.getElementById('cancelPrinterModal')
     .addEventListener('click', closePrinterModal);
 
-// Close modal when clicking outside.
 printerModal.addEventListener('click', function(event) {
 
     if (event.target === printerModal) {
@@ -1739,7 +1716,6 @@ printerModal.addEventListener('click', function(event) {
 
 });
 
-// Close modal and dropdown using Escape.
 document.addEventListener('keydown', function(event) {
 
     if (event.key === 'Escape') {
@@ -1811,10 +1787,10 @@ document.querySelectorAll('.edit-button').forEach(button => {
     button.addEventListener('click', function() {
 
         const type = this.dataset.type;
-        const index = this.dataset.index;
+        const id = this.dataset.id;
         const record = JSON.parse(this.dataset.record);
 
-        document.getElementById('editRecordIndex').value = index;
+        document.getElementById('editRecordId').value = id;
 
         document.getElementById('editFormType').value =
             type === 'computer'
