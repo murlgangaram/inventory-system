@@ -1,7 +1,6 @@
-
 <?php
 session_start();
-require_once 'db.php';
+require_once __DIR__ . '/db.php';
 
 // Escape output safely.
 function e($value): string {
@@ -19,7 +18,6 @@ $showModal = false;
 
 // Handle form submissions.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
     $token = $_POST['csrf_token'] ?? '';
 
     if (
@@ -27,125 +25,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         !hash_equals($_SESSION['user_csrf_token'], $token)
     ) {
         $error = 'Your session token is invalid. Please refresh the page and try again.';
-
     } else {
-
         $action = $_POST['action'] ?? '';
 
         // ADD USER
         if ($action === 'add_user') {
-
             $name = trim($_POST['full_name'] ?? '');
             $office = trim($_POST['office'] ?? '');
 
             if ($name === '') {
-
                 $error = 'Please enter the user\'s full name.';
                 $showModal = true;
-
             } else {
-<<<<<<< HEAD
-
-                $duplicate = false;
-
-                foreach ($users as $existingUser) {
-
-                    if (
-                        mb_strtolower(trim($existingUser['full_name'] ?? '')) ===
-                        mb_strtolower($name)
-                    ) {
-                        $duplicate = true;
-                        break;
-                    }
-                }
-
-                if ($duplicate) {
-
-                    $error = 'This user is already in the list.';
-                    $showModal = true;
-
-                } else {
-
-                    $users[] = [
-                        'id' => bin2hex(random_bytes(8)),
-                        'full_name' => $name,
-                        'office' => $office
-                    ];
-
-                    $_SESSION['users'] = array_values($users);
-=======
                 try {
-                    $stmt = $pdo->prepare("INSERT INTO users (full_name, office) VALUES (?, ?)");
-                    $stmt->execute([$name, $office]);
->>>>>>> 7c8d022 (adding database connections (no db.php file))
+                    // Check for an existing user with the same name.
+                    $check = $pdo->prepare(
+                        "SELECT id FROM users WHERE LOWER(full_name) = LOWER(?) LIMIT 1"
+                    );
+                    $check->execute([$name]);
 
-                    header('Location: user.php?added=1');
-                    exit;
-                } catch (PDOException $e) {
-                    // PostgreSQL error code 23505 stands for unique constraint violation (duplicate user)
-                    if ($e->getCode() == '23505') {
+                    if ($check->fetch()) {
                         $error = 'This user is already in the list.';
+                        $showModal = true;
                     } else {
-                        $error = 'Database error: ' . $e->getMessage();
+                        $stmt = $pdo->prepare(
+                            "INSERT INTO users (full_name, office) VALUES (?, ?)"
+                        );
+                        $stmt->execute([$name, $office]);
+
+                        header('Location: user.php?added=1');
+                        exit;
                     }
+                } catch (PDOException $e) {
+                    error_log('Add user failed: ' . $e->getMessage());
+                    $error = 'Unable to add the user. Please check your database table and try again.';
                     $showModal = true;
                 }
             }
 
         // DELETE USER
         } elseif ($action === 'delete_user') {
-<<<<<<< HEAD
-
-            $id = (string)($_POST['user_id'] ?? '');
-
-            $before = count($users);
-
-            $users = array_values(array_filter(
-                $users,
-                function ($user) use ($id) {
-                    return (string)($user['id'] ?? '') !== $id;
-                }
-            ));
-
-            $_SESSION['users'] = $users;
-
-            if (count($users) < $before) {
-
-=======
             $id = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
 
-            if ($id) {
-                $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-                $stmt->execute([$id]);
+            if ($id !== false && $id !== null && $id > 0) {
+                try {
+                    $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                    $stmt->execute([$id]);
 
->>>>>>> 7c8d022 (adding database connections (no db.php file))
-                header('Location: user.php?deleted=1');
-                exit;
+                    if ($stmt->rowCount() > 0) {
+                        header('Location: user.php?deleted=1');
+                        exit;
+                    }
 
+                    $error = 'The selected user could not be found.';
+                } catch (PDOException $e) {
+                    error_log('Delete user failed: ' . $e->getMessage());
+                    $error = 'Unable to remove the user. Please try again.';
+                }
             } else {
-
                 $error = 'The selected user could not be found.';
             }
         }
     }
 }
 
-<<<<<<< HEAD
-// Get updated users.
-$users = array_values($_SESSION['users']);
-=======
-// Fetch all users directly from the PostgreSQL database
-$stmt = $pdo->query("SELECT * FROM users ORDER BY full_name ASC");
-$users = $stmt->fetchAll();
->>>>>>> 7c8d022 (adding database connections (no db.php file))
+// Fetch all users from MySQL.
+try {
+    $stmt = $pdo->query("SELECT id, full_name, office FROM users ORDER BY full_name ASC");
+    $users = $stmt->fetchAll();
+} catch (PDOException $e) {
+    error_log('Fetch users failed: ' . $e->getMessage());
+    $users = [];
+    $error = 'Unable to load users. Please check that the users table exists.';
+}
 
 // Success messages.
 if (isset($_GET['added'])) {
-
     $message = 'User added successfully.';
-
 } elseif (isset($_GET['deleted'])) {
-
     $message = 'User removed from the list.';
 }
 ?>

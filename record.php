@@ -16,6 +16,31 @@ function statusClass($status): string {
 $error = '';
 $computerError = '';
 
+// Optional user filter used when Equipment Record is opened from a user profile.
+$assignedFilter = trim((string)($_GET['assigned_to'] ?? ''));
+$isEmbedded = (($_GET['embed'] ?? '') === '1');
+
+// Keep the selected user's filtered view after add/edit form submissions.
+$recordFormParams = [];
+if ($assignedFilter !== '') {
+    $recordFormParams['assigned_to'] = $assignedFilter;
+}
+if ($isEmbedded) {
+    $recordFormParams['embed'] = '1';
+}
+$recordFormAction = 'record.php' . ($recordFormParams ? '?' . http_build_query($recordFormParams) : '');
+
+function recordRedirectUrl(string $action, string $type, string $assignedFilter, bool $isEmbedded): string {
+    $params = [$action => $type];
+    if ($assignedFilter !== '') {
+        $params['assigned_to'] = $assignedFilter;
+    }
+    if ($isEmbedded) {
+        $params['embed'] = '1';
+    }
+    return 'record.php?' . http_build_query($params) . '#inventory-list';
+}
+
 /* UPDATE COMPUTER */
 if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
@@ -45,7 +70,7 @@ if (
             $id
         ]);
 
-        header('Location: record.php?updated=computer#inventory-list');
+        header('Location: ' . recordRedirectUrl('updated', 'computer', $assignedFilter, $isEmbedded));
         exit;
     }
 
@@ -75,7 +100,7 @@ if (
             $id
         ]);
 
-        header('Location: record.php?updated=printer#inventory-list');
+        header('Location: ' . recordRedirectUrl('updated', 'printer', $assignedFilter, $isEmbedded));
         exit;
     }
 
@@ -108,7 +133,7 @@ if (
             trim($_POST['status'] ?? 'Working')
         ]);
 
-        header('Location: record.php?added=computer#inventory-list');
+        header('Location: ' . recordRedirectUrl('added', 'computer', $assignedFilter, $isEmbedded));
         exit;
     }
 
@@ -135,7 +160,7 @@ if (
             trim($_POST['status'] ?? 'Working')
         ]);
 
-        header('Location: record.php?added=printer#inventory-list');
+        header('Location: ' . recordRedirectUrl('added', 'printer', $assignedFilter, $isEmbedded));
         exit;
     }
 
@@ -146,9 +171,23 @@ if (
 $usersStmt = $pdo->query("SELECT * FROM users ORDER BY full_name ASC");
 $users = $usersStmt->fetchAll();
 
-// Fetch computers and printers from the PostgreSQL database
-$computers = $pdo->query("SELECT * FROM computers ORDER BY id DESC")->fetchAll();
-$printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
+// Fetch all records, or only the equipment assigned to the selected user.
+if ($assignedFilter !== '') {
+    $computerStmt = $pdo->prepare(
+        "SELECT * FROM computers WHERE LOWER(TRIM(assigned_to)) = LOWER(TRIM(?)) ORDER BY id DESC"
+    );
+    $computerStmt->execute([$assignedFilter]);
+    $computers = $computerStmt->fetchAll();
+
+    $printerStmt = $pdo->prepare(
+        "SELECT * FROM printers WHERE LOWER(TRIM(assigned_to)) = LOWER(TRIM(?)) ORDER BY id DESC"
+    );
+    $printerStmt->execute([$assignedFilter]);
+    $printers = $printerStmt->fetchAll();
+} else {
+    $computers = $pdo->query("SELECT * FROM computers ORDER BY id DESC")->fetchAll();
+    $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
+}
 ?>
 
 <!DOCTYPE html>
@@ -161,6 +200,14 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
 <title>Equipment Record - Inventory System</title>
 
 <link rel="stylesheet" href="record.css">
+<?php if ($isEmbedded): ?>
+<style>
+    html, body { min-width: 0; background: #fff; }
+    .sidebar { display: none !important; }
+    .main { margin-left: 0 !important; width: 100% !important; padding: 14px !important; }
+    .header { margin-top: 0 !important; }
+</style>
+<?php endif; ?>
 </head>
 
 <body>
@@ -234,7 +281,12 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
     </header>
 
     <p class="muted">
-        View and search the computer and printer records in your inventory.
+        <?php if ($assignedFilter !== ''): ?>
+            Showing equipment assigned to:
+            <strong style="color:#2563eb"><?= e($assignedFilter) ?></strong>
+        <?php else: ?>
+            View and search the computer and printer records in your inventory.
+        <?php endif; ?>
     </p>
 
     <!-- SUCCESS MESSAGE -->
@@ -652,7 +704,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
 
         <div class="modal-body">
 
-            <form method="POST" action="record.php">
+            <form method="POST" action="<?= e($recordFormAction) ?>">
 
                 <input type="hidden" name="form_type" value="computer">
 
@@ -775,7 +827,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
                             <option value="">Select Assigned User</option>
 
                             <?php foreach ($users as $user): ?>
-                                <option value="<?= e($user['full_name'] ?? '') ?>">
+                                <option value="<?= e($user['full_name'] ?? '') ?>" <?= strcasecmp((string)($user['full_name'] ?? ''), $assignedFilter) === 0 ? 'selected' : '' ?>>
                                     <?= e($user['full_name'] ?? '') ?><?= !empty($user['office']) ? ' — ' . e($user['office']) : '' ?>
                                 </option>
                             <?php endforeach; ?>
@@ -858,7 +910,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
 
         <div class="modal-body">
 
-            <form method="POST" action="record.php">
+            <form method="POST" action="<?= e($recordFormAction) ?>">
 
                 <input
                     type="hidden"
@@ -918,7 +970,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
                             <option value="">Select Assigned User</option>
 
                             <?php foreach ($users as $user): ?>
-                                <option value="<?= e($user['full_name'] ?? '') ?>">
+                                <option value="<?= e($user['full_name'] ?? '') ?>" <?= strcasecmp((string)($user['full_name'] ?? ''), $assignedFilter) === 0 ? 'selected' : '' ?>>
                                     <?= e($user['full_name'] ?? '') ?><?= !empty($user['office']) ? ' — ' . e($user['office']) : '' ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1025,7 +1077,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
 
         <div class="modal-body">
 
-            <form method="POST" action="record.php" id="editForm">
+            <form method="POST" action="<?= e($recordFormAction) ?>" id="editForm">
 
                 <input type="hidden" name="form_type" id="editFormType">
                 <input type="hidden" name="record_id" id="editRecordId">
@@ -1104,7 +1156,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
                             <option value="">Select Assigned User</option>
 
                             <?php foreach ($users as $user): ?>
-                                <option value="<?= e($user['full_name'] ?? '') ?>">
+                                <option value="<?= e($user['full_name'] ?? '') ?>" <?= strcasecmp((string)($user['full_name'] ?? ''), $assignedFilter) === 0 ? 'selected' : '' ?>>
                                     <?= e($user['full_name'] ?? '') ?><?= !empty($user['office']) ? ' — ' . e($user['office']) : '' ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1158,7 +1210,7 @@ $printers = $pdo->query("SELECT * FROM printers ORDER BY id DESC")->fetchAll();
                             <option value="">Select Assigned User</option>
 
                             <?php foreach ($users as $user): ?>
-                                <option value="<?= e($user['full_name'] ?? '') ?>">
+                                <option value="<?= e($user['full_name'] ?? '') ?>" <?= strcasecmp((string)($user['full_name'] ?? ''), $assignedFilter) === 0 ? 'selected' : '' ?>>
                                     <?= e($user['full_name'] ?? '') ?><?= !empty($user['office']) ? ' — ' . e($user['office']) : '' ?>
                                 </option>
                             <?php endforeach; ?>
