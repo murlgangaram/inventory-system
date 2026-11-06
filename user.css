@@ -1185,3 +1185,242 @@ tbody tr:last-child td {
     border-color: #ff3838 !important;
     box-shadow: 0 0 0 2px rgba(255, 56, 56, 0.10);
 }
+
+/* =========================================
+   CLICKABLE ID NUMBER AND EMPLOYEE NAME
+========================================= */
+
+.user-record-link {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Hover */
+.user-record-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Keyboard focus */
+.user-record-link:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+/* =========================================
+   CLICKABLE EMPLOYEE ID AND NAME
+========================================= */
+
+.user-record-link {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.user-record-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+.user-record-link:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+/* =====================================
+   EMPLOYEE SEARCH TOOLBAR
+===================================== */
+
+.employee-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+/* SEARCH WRAPPER */
+
+.employee-search-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+/* SEARCH ICON */
+
+.employee-search-wrapper .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    pointer-events: none;
+}
+
+/* SEARCH INPUT */
+
+.employee-search-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px 0 40px;
+    border: 1px solid #dedede;
+    border-radius: 9px;
+    outline: none;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.employee-search-input::placeholder {
+    color: #888;
+}
+
+.employee-search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+/* EMPLOYEE COUNT */
+
+.employee-count {
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 600px) {
+
+    .employee-toolbar {
+        gap: 8px;
+    }
+
+    .employee-search-input {
+        font-size: 13px;
+    }
+
+    .employee-count {
+        font-size: 12px;
+    }
+
+}
+/* =====================================
+   EMPLOYEE ENABLE / DISABLE CONTROLS
+===================================== */
+
+.employee-overview-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.employee-status-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.employee-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 13px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.employee-status-badge.enabled {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.employee-status-badge.disabled {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.employee-status-button {
+    border: none;
+    padding: 10px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.employee-status-button.disable {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.employee-status-button.disable:hover {
+    background: #fecaca;
+}
+
+.employee-status-button.enable {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.employee-status-button.enable:hover {
+    background: #bbf7d0;
+}
+
+.employee-status-button:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+    .employee-status-controls {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
+
+
+
