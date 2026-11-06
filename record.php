@@ -1175,8 +1175,9 @@ table {
     <div class="page-heading">
 
         <div>
+          
             <h2>Equipment Record</h2>
-
+             
             <p>
                 View and manage computer and printer inventory records.
             </p>
@@ -1190,7 +1191,7 @@ table {
                 id="equipmentButton"
                 aria-expanded="false"
             >
-                + Add Equipment ⌄
+                Add Equipment ⌄
             </button>
 
             <div class="equipment-menu" id="equipmentMenu">
@@ -1200,7 +1201,7 @@ table {
                     class="equipment-option"
                     id="openComputerModal"
                 >
-                    + Add Computer
+                    Add Computer
                 </button>
 
                 <button
@@ -1208,7 +1209,7 @@ table {
                     class="equipment-option"
                     id="openPrinterModal"
                 >
-                    + Add Printer
+                    Add Printer
                 </button>
 
             </div>
@@ -1216,6 +1217,8 @@ table {
         </div>
 
     </div>
+    
+
 
     <?php endif; ?>
 

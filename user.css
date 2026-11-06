@@ -1166,3 +1166,22 @@ tbody tr:last-child td {
         width: 100%;
     }
 }
+/* FIELD VALIDATION ERRORS */
+
+.field-error {
+    display: block;
+    color: #ff3838;
+    font-size: 13px;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.field input.input-error {
+    border: 1px solid #ff3838 !important;
+    outline: none;
+}
+
+.field input.input-error:focus {
+    border-color: #ff3838 !important;
+    box-shadow: 0 0 0 2px rgba(255, 56, 56, 0.10);
+}
