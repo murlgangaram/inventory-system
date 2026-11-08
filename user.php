@@ -1,7 +1,20 @@
 
 <?php
-session_start();
-require_once __DIR__ . '/db.php';
+
+require_once __DIR__ . '/auth.php';
+
+// auth.php handles session initialization and loads db.php.
+require_permission('view_employees');
+
+/* =========================================
+   PERMISSION FLAGS
+========================================= */
+
+$canManageEmployees = has_permission('manage_employees');
+$canViewDashboard = has_permission('view_dashboard');
+$canViewInventory = has_permission('view_inventory');
+$canManageAccounts = has_permission('manage_accounts');
+$canManageRoles = has_permission('manage_roles');
 
 /* =========================================
    HELPER FUNCTIONS
@@ -46,294 +59,301 @@ $modalUserId = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $token = $_POST['csrf_token'] ?? '';
+    $action = $_POST['action'] ?? '';
 
-    if (
-        !is_string($token) ||
-        !hash_equals($_SESSION['user_csrf_token'], $token)
-    ) {
-        $error = 'Invalid session token. Please refresh the page.';
+    $employeeManagementActions = [
+        'add_user',
+        'edit_user',
+        'toggle_user_status',
+        'delete_user'
+    ];
+
+    if (!in_array($action, $employeeManagementActions, true)) {
+
+        $error = 'Invalid employee request.';
 
     } else {
 
-        $action = $_POST['action'] ?? '';
+        // Enforce employee-management permission on the server.
+        require_permission('manage_employees');
 
-        /* =================================
-           ADD / EDIT USER
-        ================================= */
+        // Validate CSRF token.
+        $submittedToken = $_POST['csrf_token'] ?? '';
 
-        if ($action === 'add_user' || $action === 'edit_user') {
+        if (
+            !is_string($submittedToken) ||
+            !hash_equals($_SESSION['user_csrf_token'], $submittedToken)
+        ) {
 
-            $formAction = $action;
+            $error = 'Your session security token is invalid. Please refresh the page and try again.';
 
-            $idNumber = trim($_POST['user_id_number'] ?? '');
-            $name = trim($_POST['full_name'] ?? '');
-            $position = trim($_POST['position'] ?? '');
-            $jobDescription = trim($_POST['job_description'] ?? '');
-            $office = trim($_POST['office'] ?? '');
+        } else {
 
-            $userId = filter_var(
-                $_POST['user_id'] ?? null,
-                FILTER_VALIDATE_INT
-            );
+            /* =================================
+               ADD / EDIT EMPLOYEE
+            ================================= */
 
-            $modalUserId = $action === 'edit_user'
-                ? (string)($userId ?: '')
-                : '';
+            if ($action === 'add_user' || $action === 'edit_user') {
 
-            $formData = [
-                'user_id_number' => $idNumber,
-                'full_name' => $name,
-                'position' => $position,
-                'job_description' => $jobDescription,
-                'office' => $office
-            ];
+                $formAction = $action;
 
-            /* REQUIRED FIELD VALIDATION */
+                $idNumber = trim($_POST['user_id_number'] ?? '');
+                $name = trim($_POST['full_name'] ?? '');
+                $position = trim($_POST['position'] ?? '');
+                $jobDescription = trim($_POST['job_description'] ?? '');
+                $office = trim($_POST['office'] ?? '');
 
-            if ($idNumber === '') {
-                $fieldErrors['user_id_number'] =
-                    'Please enter the ID number.';
-            }
+                $userId = filter_var(
+                    $_POST['user_id'] ?? null,
+                    FILTER_VALIDATE_INT
+                );
 
-            if ($name === '') {
-                $fieldErrors['full_name'] =
-                    'Please enter the employee name.';
-            }
+                $modalUserId = $action === 'edit_user'
+                    ? (string)($userId ?: '')
+                    : '';
 
-            if (
-                $action === 'edit_user' &&
-                (!$userId || $userId <= 0)
-            ) {
-                $error = 'Invalid employee record. Please try again.';
-            }
+                $formData = [
+                    'user_id_number' => $idNumber,
+                    'full_name' => $name,
+                    'position' => $position,
+                    'job_description' => $jobDescription,
+                    'office' => $office
+                ];
 
-            /* CHECK DUPLICATE ID NUMBER */
+                if ($idNumber === '') {
+                    $fieldErrors['user_id_number'] =
+                        'Please enter the ID number.';
+                }
 
-            if (empty($fieldErrors) && $error === '') {
+                if ($name === '') {
+                    $fieldErrors['full_name'] =
+                        'Please enter the employee name.';
+                }
 
-                try {
+                if (
+                    $action === 'edit_user' &&
+                    (!$userId || $userId <= 0)
+                ) {
+                    $error = 'Invalid employee record. Please try again.';
+                }
 
-                    $excludeId = $action === 'edit_user'
-                        ? (int)$userId
-                        : 0;
+                /* CHECK DUPLICATE ID NUMBER */
 
-                    $check = $pdo->prepare("
-                        SELECT id
-                        FROM users
-                        WHERE user_id_number = ?
-                        AND id != ?
-                        LIMIT 1
-                    ");
+                if (empty($fieldErrors) && $error === '') {
 
-                    $check->execute([$idNumber, $excludeId]);
+                    try {
 
-                    if ($check->fetch(PDO::FETCH_ASSOC)) {
-                        $fieldErrors['user_id_number'] =
-                            'This ID number is already registered.';
+                        $excludeId = $action === 'edit_user'
+                            ? (int)$userId
+                            : 0;
+
+                        $check = $pdo->prepare("
+                            SELECT id
+                            FROM users
+                            WHERE user_id_number = ?
+                            AND id != ?
+                            LIMIT 1
+                        ");
+
+                        $check->execute([$idNumber, $excludeId]);
+
+                        if ($check->fetch(PDO::FETCH_ASSOC)) {
+                            $fieldErrors['user_id_number'] =
+                                'This ID number is already registered.';
+                        }
+
+                    } catch (PDOException $ex) {
+
+                        error_log(
+                            'Check employee ID error: ' . $ex->getMessage()
+                        );
+
+                        $error =
+                            'Unable to validate employee information. Please try again.';
                     }
+                }
 
-                } catch (PDOException $ex) {
+                /* INSERT OR UPDATE EMPLOYEE */
 
-                    error_log(
-                        'Check employee ID error: ' . $ex->getMessage()
-                    );
+                if (empty($fieldErrors) && $error === '') {
 
-                    $error =
-                        'Unable to validate employee information. Please try again.';
+                    try {
+
+                        if ($action === 'add_user') {
+
+                            $stmt = $pdo->prepare("
+                                INSERT INTO users (
+                                    user_id_number,
+                                    full_name,
+                                    position,
+                                    job_description,
+                                    office,
+                                    status
+                                )
+                                VALUES (?, ?, ?, ?, ?, 'Enabled')
+                            ");
+
+                            $stmt->execute([
+                                $idNumber,
+                                $name,
+                                $position,
+                                $jobDescription,
+                                $office
+                            ]);
+
+                            header('Location: user.php?added=1');
+                            exit;
+
+                        } else {
+
+                            $stmt = $pdo->prepare("
+                                UPDATE users SET
+                                    user_id_number = ?,
+                                    full_name = ?,
+                                    position = ?,
+                                    job_description = ?,
+                                    office = ?
+                                WHERE id = ?
+                            ");
+
+                            $stmt->execute([
+                                $idNumber,
+                                $name,
+                                $position,
+                                $jobDescription,
+                                $office,
+                                $userId
+                            ]);
+
+                            header('Location: user.php?updated=1');
+                            exit;
+                        }
+
+                    } catch (PDOException $ex) {
+
+                        error_log(
+                            'Save employee error: ' . $ex->getMessage()
+                        );
+
+                        $error =
+                            'Unable to save employee information. Please try again.';
+                    }
+                }
+
+                if (!empty($fieldErrors) || $error !== '') {
+                    $showModal = true;
                 }
             }
 
-            /* INSERT OR UPDATE USER */
+            /* =================================
+               ENABLE / DISABLE EMPLOYEE
+            ================================= */
 
-            if (empty($fieldErrors) && $error === '') {
+            elseif ($action === 'toggle_user_status') {
 
-                try {
+                $userId = filter_var(
+                    $_POST['user_id'] ?? null,
+                    FILTER_VALIDATE_INT
+                );
 
-                    if ($action === 'add_user') {
+                $newStatus = $_POST['new_status'] ?? '';
 
-                        $stmt = $pdo->prepare("
-                            INSERT INTO users (
-                                user_id_number,
-                                full_name,
-                                position,
-                                job_description,
-                                office,
-                                status
-                            )
-                            VALUES (?, ?, ?, ?, ?, 'Enabled')
-                        ");
+                if (
+                    $userId &&
+                    $userId > 0 &&
+                    in_array($newStatus, ['Enabled', 'Disabled'], true)
+                ) {
 
-                        $stmt->execute([
-                            $idNumber,
-                            $name,
-                            $position,
-                            $jobDescription,
-                            $office
-                        ]);
-
-                        header('Location: user.php?added=1');
-                        exit;
-
-                    } else {
+                    try {
 
                         $stmt = $pdo->prepare("
-                            UPDATE users SET
-                                user_id_number = ?,
-                                full_name = ?,
-                                position = ?,
-                                job_description = ?,
-                                office = ?
+                            UPDATE users
+                            SET status = ?
                             WHERE id = ?
                         ");
 
                         $stmt->execute([
-                            $idNumber,
-                            $name,
-                            $position,
-                            $jobDescription,
-                            $office,
+                            $newStatus,
                             $userId
                         ]);
 
-                        header('Location: user.php?updated=1');
-                        exit;
+                        // Confirm the employee exists, even if the status
+                        // was already set to the requested value.
+                        $check = $pdo->prepare("
+                            SELECT id
+                            FROM users
+                            WHERE id = ?
+                            LIMIT 1
+                        ");
+
+                        $check->execute([$userId]);
+
+                        if ($check->fetch(PDO::FETCH_ASSOC)) {
+                            header('Location: user.php?status_updated=1');
+                            exit;
+                        }
+
+                        $error = 'Employee record could not be found.';
+
+                    } catch (PDOException $ex) {
+
+                        error_log(
+                            'Employee status error: ' . $ex->getMessage()
+                        );
+
+                        $error = 'Unable to update employee status.';
                     }
 
-                } catch (PDOException $ex) {
+                } else {
 
-                    error_log(
-                        'Save employee error: ' . $ex->getMessage()
-                    );
-
-                    $error =
-                        'Unable to save employee information. Please try again.';
+                    $error = 'Invalid employee status request.';
                 }
             }
 
-            if (!empty($fieldErrors) || $error !== '') {
-                $showModal = true;
-            }
-        }
+            /* =================================
+               DELETE EMPLOYEE
+               No delete button is currently displayed.
+            ================================= */
 
-        /* =================================
-           ENABLE / DISABLE EMPLOYEE
-        ================================= */
+            elseif ($action === 'delete_user') {
 
-        elseif ($action === 'toggle_user_status') {
+                $id = filter_var(
+                    $_POST['user_id'] ?? null,
+                    FILTER_VALIDATE_INT
+                );
 
-            $userId = filter_var(
-                $_POST['user_id'] ?? null,
-                FILTER_VALIDATE_INT
-            );
+                if ($id && $id > 0) {
 
-            $newStatus = $_POST['new_status'] ?? '';
+                    try {
 
-            if (
-                $userId &&
-                $userId > 0 &&
-                in_array($newStatus, ['Enabled', 'Disabled'], true)
-            ) {
+                        $stmt = $pdo->prepare("
+                            DELETE FROM users
+                            WHERE id = ?
+                        ");
 
-                try {
+                        $stmt->execute([$id]);
 
-                    $stmt = $pdo->prepare("
-                        UPDATE users
-                        SET status = ?
-                        WHERE id = ?
-                    ");
+                        if ($stmt->rowCount() > 0) {
+                            header('Location: user.php?deleted=1');
+                            exit;
+                        }
 
-                    $stmt->execute([
-                        $newStatus,
-                        $userId
-                    ]);
+                        $error = 'User could not be found.';
 
-                    if ($stmt->rowCount() > 0) {
+                    } catch (PDOException $ex) {
 
-                        header('Location: user.php?status_updated=1');
-                        exit;
+                        error_log(
+                            'Delete user error: ' . $ex->getMessage()
+                        );
 
+                        $error =
+                            'Unable to remove user. Check whether equipment is assigned to this user.';
                     }
 
-                    /* Check whether the employee exists even if
-                       the requested status is already saved. */
+                } else {
 
-                    $check = $pdo->prepare("
-                        SELECT id
-                        FROM users
-                        WHERE id = ?
-                        LIMIT 1
-                    ");
-
-                    $check->execute([$userId]);
-
-                    if ($check->fetch(PDO::FETCH_ASSOC)) {
-
-                        header('Location: user.php?status_updated=1');
-                        exit;
-
-                    }
-
-                    $error = 'Employee record could not be found.';
-
-                } catch (PDOException $ex) {
-
-                    error_log(
-                        'Employee status error: ' . $ex->getMessage()
-                    );
-
-                    $error = 'Unable to update employee status.';
+                    $error = 'Invalid user selected.';
                 }
-
-            } else {
-
-                $error = 'Invalid employee status request.';
-            }
-        }
-
-        /* =================================
-           DELETE USER HANDLER
-           No delete button is displayed.
-        ================================= */
-
-        elseif ($action === 'delete_user') {
-
-            $id = filter_var(
-                $_POST['user_id'] ?? null,
-                FILTER_VALIDATE_INT
-            );
-
-            if ($id && $id > 0) {
-
-                try {
-
-                    $stmt = $pdo->prepare("
-                        DELETE FROM users
-                        WHERE id = ?
-                    ");
-
-                    $stmt->execute([$id]);
-
-                    if ($stmt->rowCount() > 0) {
-                        header('Location: user.php?deleted=1');
-                        exit;
-                    }
-
-                    $error = 'User could not be found.';
-
-                } catch (PDOException $ex) {
-
-                    error_log(
-                        'Delete user error: ' . $ex->getMessage()
-                    );
-
-                    $error =
-                        'Unable to remove user. Check whether equipment is assigned to this user.';
-                }
-
-            } else {
-
-                $error = 'Invalid user selected.';
             }
         }
     }
@@ -365,7 +385,6 @@ try {
     error_log('Fetch users error: ' . $ex->getMessage());
 
     $users = [];
-
     $error = 'Unable to load users. Check your users table.';
 }
 
@@ -410,8 +429,6 @@ foreach ($users as $user) {
     if ($fullName === '') {
         continue;
     }
-
-    /* Use database ID as profile key. */
 
     $profileKey = (string)$user['id'];
 
@@ -554,17 +571,33 @@ if (isset($_GET['added'])) {
 
     <nav>
 
-        <a class="nav-link" href="index.php">
-            Dashboard
-        </a>
+        <?php if ($canViewDashboard): ?>
+            <a class="nav-link" href="index.php">
+                Dashboard
+            </a>
+        <?php endif; ?>
 
-        <a class="nav-link" href="record.php">
-            Equipment Record
-        </a>
+        <?php if ($canViewInventory): ?>
+            <a class="nav-link" href="record.php">
+                Equipment Record
+            </a>
+        <?php endif; ?>
 
         <a class="nav-link active" href="user.php">
             Employee Record
         </a>
+
+        <?php if ($canManageAccounts): ?>
+            <a class="nav-link" href="account_management.php">
+                Account Management
+            </a>
+        <?php endif; ?>
+
+        <?php if ($canManageRoles): ?>
+            <a class="nav-link" href="role_management.php">
+                Role Management
+            </a>
+        <?php endif; ?>
 
     </nav>
 
@@ -580,13 +613,15 @@ if (isset($_GET['added'])) {
 
         <h2>Assigned Employee Record</h2>
 
-        <button
-            type="button"
-            class="button"
-            onclick="openAddUserModal()"
-        >
-            Create Employee
-        </button>
+        <?php if ($canManageEmployees): ?>
+            <button
+                type="button"
+                class="button"
+                onclick="openAddUserModal()"
+            >
+                Create Employee
+            </button>
+        <?php endif; ?>
 
     </header>
 
@@ -595,20 +630,20 @@ if (isset($_GET['added'])) {
         to computers and printers.
     </p>
 
-    <?php if ($message !== ''): ?>
+    <!-- =================================
+         NOTIFICATIONS
+    ================================== -->
 
-        <div class="notice">
+    <?php if ($message !== ''): ?>
+        <div class="alert alert-success" role="alert">
             <?= e($message) ?>
         </div>
-
     <?php endif; ?>
 
     <?php if ($error !== ''): ?>
-
-        <div class="error">
+        <div class="alert alert-error" role="alert">
             <?= e($error) ?>
         </div>
-
     <?php endif; ?>
 
     <!-- =================================
@@ -618,8 +653,6 @@ if (isset($_GET['added'])) {
     <section class="panel">
 
         <div class="panel-head employee-toolbar">
-
-            <!-- SEARCH BAR -->
 
             <div class="employee-search-wrapper">
 
@@ -652,8 +685,6 @@ if (isset($_GET['added'])) {
 
             </div>
 
-            <!-- EMPLOYEE COUNT -->
-
             <span class="muted employee-count" id="employeeCount">
 
                 <?= count($users) ?>
@@ -678,7 +709,11 @@ if (isset($_GET['added'])) {
                         <th>POSITION</th>
                         <th>OFFICE</th>
                         <th>STATUS</th>
-                        <th>ACTION</th>
+
+                        <?php if ($canManageEmployees): ?>
+                            <th>ACTION</th>
+                        <?php endif; ?>
+
                     </tr>
 
                 </thead>
@@ -689,7 +724,10 @@ if (isset($_GET['added'])) {
 
                     <tr id="emptyEmployeeRow">
 
-                        <td colspan="6" class="empty">
+                        <td
+                            colspan="<?= $canManageEmployees ? 6 : 5 ?>"
+                            class="empty"
+                        >
                             No employee added yet.
                         </td>
 
@@ -701,14 +739,13 @@ if (isset($_GET['added'])) {
 
                     <?php
                         $employeeStatus = $user['status'] ?? 'Enabled';
+
                         $statusClass = $employeeStatus === 'Disabled'
                             ? 'disabled'
                             : 'enabled';
                     ?>
 
                     <tr class="employee-row">
-
-                        <!-- ID NUMBER -->
 
                         <td>
 
@@ -718,14 +755,10 @@ if (isset($_GET['added'])) {
                                 data-user-id="<?= (int)$user['id'] ?>"
                                 aria-label="View employee <?= e($user['user_id_number']) ?>"
                             >
-
                                 <?= e($user['user_id_number'] ?: '—') ?>
-
                             </button>
 
                         </td>
-
-                        <!-- EMPLOYEE NAME -->
 
                         <td>
 
@@ -735,26 +768,18 @@ if (isset($_GET['added'])) {
                                 data-user-id="<?= (int)$user['id'] ?>"
                                 aria-label="View employee <?= e($user['full_name']) ?>"
                             >
-
                                 <?= e($user['full_name']) ?>
-
                             </button>
 
                         </td>
-
-                        <!-- POSITION -->
 
                         <td>
                             <?= e($user['position'] ?: '—') ?>
                         </td>
 
-                        <!-- OFFICE -->
-
                         <td>
                             <?= e($user['office'] ?: '—') ?>
                         </td>
-
-                        <!-- STATUS -->
 
                         <td>
 
@@ -764,39 +789,40 @@ if (isset($_GET['added'])) {
 
                         </td>
 
-                        <!-- ACTION -->
+                        <?php if ($canManageEmployees): ?>
 
-                        <td>
+                            <td>
 
-                            <button
-                                type="button"
-                                class="edit-button"
-                                onclick='openEditUserModal(
-                                    <?= json_encode(
-                                        $user,
-                                        JSON_HEX_APOS |
-                                        JSON_HEX_QUOT |
-                                        JSON_HEX_TAG |
-                                        JSON_HEX_AMP
-                                    ) ?>
-                                )'
-                            >
+                                <button
+                                    type="button"
+                                    class="edit-button"
+                                    onclick='openEditUserModal(
+                                        <?= json_encode(
+                                            $user,
+                                            JSON_HEX_APOS |
+                                            JSON_HEX_QUOT |
+                                            JSON_HEX_TAG |
+                                            JSON_HEX_AMP
+                                        ) ?>
+                                    )'
+                                >
+                                    Edit
+                                </button>
 
-                                Edit
+                            </td>
 
-                            </button>
-
-                        </td>
+                        <?php endif; ?>
 
                     </tr>
 
                     <?php endforeach; ?>
 
-                    <!-- NO SEARCH RESULTS -->
-
                     <tr id="emptyEmployeeRow" style="display: none;">
 
-                        <td colspan="6" class="empty">
+                        <td
+                            colspan="<?= $canManageEmployees ? 6 : 5 ?>"
+                            class="empty"
+                        >
                             No matching employee found.
                         </td>
 
@@ -815,8 +841,10 @@ if (isset($_GET['added'])) {
 </main>
 
 <!-- =====================================
-     ADD / EDIT USER MODAL
+     ADD / EDIT EMPLOYEE MODAL
 ===================================== -->
+
+<?php if ($canManageEmployees): ?>
 
 <div
     class="modal-overlay"
@@ -891,11 +919,9 @@ if (isset($_GET['added'])) {
                     >
 
                     <?php if (isset($fieldErrors['user_id_number'])): ?>
-
                         <span class="field-error">
                             <?= e($fieldErrors['user_id_number']) ?>
                         </span>
-
                     <?php endif; ?>
 
                 </div>
@@ -917,11 +943,9 @@ if (isset($_GET['added'])) {
                     >
 
                     <?php if (isset($fieldErrors['full_name'])): ?>
-
                         <span class="field-error">
                             <?= e($fieldErrors['full_name']) ?>
                         </span>
-
                     <?php endif; ?>
 
                 </div>
@@ -991,11 +1015,9 @@ if (isset($_GET['added'])) {
                     class="primary-button"
                     id="submitUserButton"
                 >
-
                     <?= $formAction === 'edit_user'
                         ? 'Save Changes'
                         : 'Add Employee' ?>
-
                 </button>
 
             </div>
@@ -1005,6 +1027,8 @@ if (isset($_GET['added'])) {
     </div>
 
 </div>
+
+<?php endif; ?>
 
 <!-- =====================================
      EMPLOYEE PROFILE MODAL
@@ -1046,8 +1070,6 @@ if (isset($_GET['added'])) {
 
         <div class="user-profile-body">
 
-            <!-- PROFILE TABS -->
-
             <div class="user-profile-tabs" role="tablist">
 
                 <button
@@ -1076,9 +1098,7 @@ if (isset($_GET['added'])) {
 
             </div>
 
-            <!-- =================================
-                 OVERVIEW TAB
-            ================================== -->
+            <!-- OVERVIEW TAB -->
 
             <section
                 class="user-profile-tab-panel active"
@@ -1110,7 +1130,7 @@ if (isset($_GET['added'])) {
 
                         </div>
 
-                        <!-- EMPLOYEE STATUS AND BUTTON -->
+                        <?php if ($canManageEmployees): ?>
 
                         <div class="employee-status-controls">
 
@@ -1165,91 +1185,74 @@ if (isset($_GET['added'])) {
 
                         </div>
 
-                    </div>
+                        <?php else: ?>
 
-                    <!-- EMPLOYEE INFORMATION -->
+                        <div class="employee-status-controls">
+                            <span
+                                id="profileStatus"
+                                class="employee-status-badge enabled"
+                            >
+                                Enabled
+                            </span>
+                        </div>
+
+                        <?php endif; ?>
+
+                    </div>
 
                     <div class="employee-info-grid">
 
                         <div class="employee-info-item">
-
                             <label>User ID Number</label>
-
                             <span id="profileId">—</span>
-
                         </div>
 
                         <div class="employee-info-item">
-
                             <label>Full Name</label>
-
                             <span id="profileFullName">—</span>
-
                         </div>
 
                         <div class="employee-info-item">
-
                             <label>Position</label>
-
                             <span id="profileInfoPosition">—</span>
-
                         </div>
 
                         <div class="employee-info-item">
-
                             <label>Office</label>
-
                             <span id="profileOffice">—</span>
-
                         </div>
 
                         <div class="employee-info-item">
-
                             <label>Job Description</label>
-
                             <span id="profileJobDescription">—</span>
-
                         </div>
 
                     </div>
 
                 </section>
 
-                <!-- EQUIPMENT SUMMARY -->
-
                 <div class="employee-equipment-summary">
 
                     <div class="employee-summary-item">
-
                         <span>Total Equipment</span>
-
                         <strong id="totalEquipment">0</strong>
-
                     </div>
 
                     <div class="employee-summary-item">
-
                         <span>Computers</span>
-
                         <strong id="totalComputers">0</strong>
-
                     </div>
 
                     <div class="employee-summary-item">
-
                         <span>Printers</span>
-
                         <strong id="totalPrinters">0</strong>
-
                     </div>
 
                 </div>
 
             </section>
 
-            <!-- =================================
-                 ASSIGNED EQUIPMENT TAB
-            ================================== -->
+            <!-- ASSIGNED EQUIPMENT TAB -->
 
             <section
                 class="user-profile-tab-panel"
@@ -1300,14 +1303,12 @@ if (isset($_GET['added'])) {
                             <tbody id="profileEquipmentBody">
 
                                 <tr>
-
                                     <td
                                         colspan="12"
                                         class="employee-equipment-empty"
                                     >
                                         No assigned equipment.
                                     </td>
-
                                 </tr>
 
                             </tbody>
@@ -1347,12 +1348,22 @@ if (isset($_GET['added'])) {
 <script>
 
 /* =====================================
-   ADD USER MODAL
+   PERMISSION FLAGS
+===================================== */
+
+const canManageEmployees = <?= $canManageEmployees ? 'true' : 'false' ?>;
+
+/* =====================================
+   ADD / EDIT USER MODAL
 ===================================== */
 
 const addUserModal = document.getElementById('addUserModal');
 
 function openAddUserModal() {
+
+    if (!canManageEmployees || !addUserModal) {
+        return;
+    }
 
     document.getElementById('modalTitle').textContent =
         'Add New Employee';
@@ -1381,6 +1392,10 @@ function openAddUserModal() {
 ===================================== */
 
 function openEditUserModal(user) {
+
+    if (!canManageEmployees || !addUserModal) {
+        return;
+    }
 
     document.getElementById('modalTitle').textContent =
         'Edit Employee';
@@ -1419,18 +1434,25 @@ function openEditUserModal(user) {
 
 function closeAddUserModal() {
 
-    addUserModal.classList.remove('show');
+    if (!addUserModal) {
+        return;
+    }
 
+    addUserModal.classList.remove('show');
     addUserModal.setAttribute('aria-hidden', 'true');
 }
 
-addUserModal.addEventListener('click', function(event) {
+if (addUserModal) {
 
-    if (event.target === addUserModal) {
-        closeAddUserModal();
-    }
+    addUserModal.addEventListener('click', function(event) {
 
-});
+        if (event.target === addUserModal) {
+            closeAddUserModal();
+        }
+
+    });
+
+}
 
 /* =====================================
    EMPLOYEE PROFILE DATA
@@ -1490,9 +1512,7 @@ function switchProfileTab(tabName) {
 
         equipmentPanel.hidden = false;
         overviewPanel.hidden = true;
-
     }
-
 }
 
 /* =====================================
@@ -1505,7 +1525,6 @@ function setProfileText(id, value) {
         value && String(value).trim() !== ''
             ? value
             : '—';
-
 }
 
 /* =====================================
@@ -1527,7 +1546,6 @@ function getInitials(name) {
         .slice(0, 2)
         .map(part => part.charAt(0).toUpperCase())
         .join('');
-
 }
 
 /* =====================================
@@ -1538,11 +1556,9 @@ function updateEmployeeStatusDisplay(status) {
 
     const statusBadge = document.getElementById('profileStatus');
 
-    const statusButton =
-        document.getElementById('toggleEmployeeButton');
-
-    const newStatus =
-        document.getElementById('profileNewStatus');
+    if (!statusBadge) {
+        return;
+    }
 
     const isEnabled = status === 'Enabled';
 
@@ -1551,6 +1567,16 @@ function updateEmployeeStatusDisplay(status) {
     statusBadge.className =
         'employee-status-badge ' +
         (isEnabled ? 'enabled' : 'disabled');
+
+    if (!canManageEmployees) {
+        return;
+    }
+
+    const statusButton =
+        document.getElementById('toggleEmployeeButton');
+
+    const newStatus =
+        document.getElementById('profileNewStatus');
 
     statusButton.textContent =
         isEnabled ? 'Disable Employee' : 'Enable Employee';
@@ -1570,19 +1596,15 @@ function updateEmployeeStatusDisplay(status) {
 function openUserProfile(userId) {
 
     const profileKey = String(userId);
-
     const profile = userProfileData[profileKey];
 
     if (!profile) {
-
         alert('Employee profile could not be found.');
         return;
     }
 
     const employee = profile.employee || {};
     const equipment = profile.equipment || [];
-
-    /* EMPLOYEE DETAILS */
 
     setProfileText('profileName', employee.full_name);
     setProfileText('profileFullName', employee.full_name);
@@ -1595,23 +1617,19 @@ function openUserProfile(userId) {
         employee.job_description
     );
 
-    /* EMPLOYEE INITIALS */
-
     document.getElementById('profileAvatar').textContent =
         getInitials(employee.full_name);
 
-    /* EMPLOYEE DATABASE ID */
+    if (canManageEmployees) {
 
-    document.getElementById('profileDatabaseId').value =
-        employee.db_id || '';
+        document.getElementById('profileDatabaseId').value =
+            employee.db_id || '';
 
-    /* EMPLOYEE STATUS */
+    }
 
     updateEmployeeStatusDisplay(
         employee.status || 'Enabled'
     );
-
-    /* EQUIPMENT COUNTS */
 
     const computerCount = equipment.filter(item =>
         item.type === 'Computer'
@@ -1630,36 +1648,32 @@ function openUserProfile(userId) {
     document.getElementById('totalPrinters').textContent =
         printerCount;
 
-    /* SAVE EQUIPMENT FOR SEARCH */
-
     currentEmployeeEquipment = equipment;
 
     equipmentSearch.value = '';
 
     renderEmployeeEquipment(equipment);
 
-    /* OPEN OVERVIEW TAB BY DEFAULT */
-
     switchProfileTab('overview');
 
-    /* SHOW PROFILE MODAL */
-
     userProfileModal.classList.add('show');
-
     userProfileModal.setAttribute('aria-hidden', 'false');
 
     document.body.style.overflow = 'hidden';
 
     document.getElementById('closeUserProfile').focus();
-
 }
 
 /* =====================================
    CONFIRM ENABLE / DISABLE
 ===================================== */
 
-document.getElementById('employeeStatusForm')
-    .addEventListener('submit', function(event) {
+const employeeStatusForm =
+    document.getElementById('employeeStatusForm');
+
+if (employeeStatusForm) {
+
+    employeeStatusForm.addEventListener('submit', function(event) {
 
         const newStatus =
             document.getElementById('profileNewStatus').value;
@@ -1684,6 +1698,8 @@ document.getElementById('employeeStatusForm')
         }
 
     });
+
+}
 
 /* =====================================
    RENDER ASSIGNED EQUIPMENT
@@ -1747,7 +1763,6 @@ function renderEmployeeEquipment(equipment) {
                 badge.textContent = value || '—';
 
                 cell.replaceChildren(badge);
-
             }
 
             if (index === 11) {
@@ -1758,7 +1773,6 @@ function renderEmployeeEquipment(equipment) {
                 badge.textContent = value || '—';
 
                 cell.replaceChildren(badge);
-
             }
 
             row.appendChild(cell);
@@ -1849,13 +1863,9 @@ function searchEmployees() {
 
     });
 
-    /* UPDATE EMPLOYEE COUNT */
-
     employeeCount.textContent =
         visibleCount +
         (visibleCount === 1 ? ' employee' : ' employees');
-
-    /* SHOW NO RESULTS MESSAGE */
 
     if (emptyEmployeeRow) {
 
@@ -1870,14 +1880,11 @@ function searchEmployees() {
             emptyMessage.textContent = searchValue
                 ? 'No matching employee found.'
                 : 'No employee added yet.';
-
         }
 
     }
 
 }
-
-/* SEARCH WHILE TYPING */
 
 employeeSearch.addEventListener('input', searchEmployees);
 
@@ -1892,7 +1899,6 @@ function closeUserProfile() {
     userProfileModal.setAttribute('aria-hidden', 'true');
 
     document.body.style.overflow = '';
-
 }
 
 document.getElementById('closeUserProfile')
@@ -1928,7 +1934,7 @@ document.addEventListener('keydown', function(event) {
    REOPEN MODAL AFTER VALIDATION ERROR
 ===================================== */
 
-<?php if ($showModal): ?>
+<?php if ($showModal && $canManageEmployees): ?>
 
 addUserModal.classList.add('show');
 addUserModal.setAttribute('aria-hidden', 'false');

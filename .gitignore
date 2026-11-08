@@ -1,3 +1,20 @@
 
 # Local database credentials
 /db.php
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Database credentials
+/db.php
+
+# macOS
+.DS_Store
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Logs
+*.log
