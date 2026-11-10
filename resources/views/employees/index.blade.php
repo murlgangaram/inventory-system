@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Record | Inventory System</title>
 
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <style>
@@ -18,9 +17,7 @@
             --line: #e6ebf2;
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -46,6 +43,15 @@
             padding: 5px 12px 30px;
         }
 
+        .sidebar-label {
+            color: #94a3b8;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 0 15px;
+            margin-bottom: 10px;
+        }
+
         .sidebar a {
             display: block;
             color: #cbd5e1;
@@ -53,6 +59,7 @@
             padding: 13px 15px;
             border-radius: 8px;
             margin-bottom: 7px;
+            font-size: 14px;
         }
 
         .sidebar a:hover,
@@ -73,6 +80,7 @@
 
         .page-description {
             color: var(--muted);
+            font-size: 14px;
         }
 
         .content-card {
@@ -83,14 +91,12 @@
             box-shadow: 0 3px 12px rgba(0,0,0,.03);
         }
 
-        .search-input {
-            max-width: 380px;
-        }
+        .search-input { max-width: 380px; }
 
         .table thead th {
             background: #f8fafc;
             color: #64748b;
-            font-size: 12px;
+            font-size: 11px;
             padding: 15px;
             white-space: nowrap;
         }
@@ -98,12 +104,16 @@
         .table tbody td {
             padding: 15px;
             vertical-align: middle;
+            font-size: 13px;
         }
 
         .employee-name {
-            font-weight: 600;
             color: var(--navy);
+            font-weight: 600;
+            text-decoration: none;
         }
+
+        .employee-name:hover { color: var(--blue); }
 
         .btn-primary {
             background: var(--blue);
@@ -112,6 +122,7 @@
 
         .btn-primary:hover {
             background: #1d4ed8;
+            border-color: #1d4ed8;
         }
 
         .modal-content {
@@ -121,7 +132,18 @@
 
         .form-label {
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
+        }
+
+        .form-control {
+            font-size: 13px;
+            padding: 10px 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 45px 15px;
+            color: var(--muted);
         }
 
         @media (max-width: 768px) {
@@ -135,6 +157,8 @@
                 margin-left: 0;
                 padding: 20px;
             }
+
+            .brand { padding-bottom: 20px; }
         }
     </style>
 </head>
@@ -145,8 +169,14 @@
 <aside class="sidebar">
     <div class="brand">Inventory System</div>
 
+    <div class="sidebar-label">Main Menu</div>
+
     <a href="{{ url('/') }}">Dashboard</a>
-    <a href="#">Equipment Record</a>
+
+    <a href="{{ route('computers.index') }}">
+        Equipment Record
+    </a>
+
     <a href="{{ route('employees.index') }}" class="active">
         Employee Record
     </a>
@@ -155,11 +185,12 @@
 <!-- MAIN CONTENT -->
 <main class="main-content">
 
+    <!-- PAGE HEADER -->
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <h1 class="page-title mb-1">Assigned Employee Record</h1>
+            <h1 class="page-title mb-1">Employee Record</h1>
             <p class="page-description mb-0">
-                Create and manage employees who can be assigned to computers and printers.
+                Create and manage the list of employees who can be assigned to computers and printers.
             </p>
         </div>
 
@@ -170,7 +201,7 @@
         </button>
     </div>
 
-    <!-- SUCCESS / ERROR MESSAGES -->
+    <!-- SUCCESS MESSAGE -->
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show">
             {{ session('success') }}
@@ -178,6 +209,7 @@
         </div>
     @endif
 
+    <!-- ERROR MESSAGE -->
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show">
             {{ session('error') }}
@@ -185,6 +217,7 @@
         </div>
     @endif
 
+    <!-- VALIDATION ERRORS -->
     @if($errors->any())
         <div class="alert alert-danger">
             <strong>Please check the following:</strong>
@@ -208,32 +241,35 @@
                 </small>
             </div>
 
-            <form action="{{ route('employees.index') }}" method="GET"
-                  class="d-flex gap-2">
+            <!-- SEARCH -->
+            <form action="{{ route('employees.index') }}"
+                  method="GET"
+                  class="d-flex flex-wrap gap-2">
+
                 <input
                     type="text"
                     name="search"
                     class="form-control search-input"
-                    placeholder="Search ID, name, position, or office..."
-                    value="{{ $search }}"
+                    placeholder="Search employee, ID number, position, or office..."
+                    value="{{ $search ?? '' }}"
                 >
 
                 <button class="btn btn-outline-primary" type="submit">
                     Search
                 </button>
 
-                @if($search)
+                @if(!empty($search))
                     <a href="{{ route('employees.index') }}"
                        class="btn btn-outline-secondary">
                         Clear
                     </a>
                 @endif
             </form>
-
         </div>
 
         <div class="table-responsive">
             <table class="table table-hover align-middle">
+
                 <thead>
                     <tr>
                         <th>ID NUMBER</th>
@@ -250,68 +286,83 @@
                             <td>{{ $employee->user_id_number }}</td>
 
                             <td>
-                                <span class="employee-name">
+                                <a href="{{ route('employees.show', $employee->id) }}"
+                                   class="employee-name">
                                     {{ $employee->full_name }}
-                                </span>
+                                </a>
                             </td>
 
                             <td>{{ $employee->position ?: '—' }}</td>
 
-                            <td>{{ $employee->office }}</td>
+                            <td>{{ $employee->office ?: '—' }}</td>
 
                             <td class="text-center">
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-outline-primary edit-employee-btn"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#editEmployeeModal"
-                                    data-id="{{ $employee->id }}"
-                                    data-user-id="{{ $employee->user_id_number }}"
-                                    data-name="{{ $employee->full_name }}"
-                                    data-position="{{ $employee->position }}"
-                                    data-description="{{ $employee->job_description }}"
-                                    data-office="{{ $employee->office }}">
-                                    Edit
-                                </button>
+                                <div class="d-flex justify-content-center gap-2">
 
-                                <form
-                                    action="{{ route('employees.destroy', $employee->id) }}"
-                                    method="POST"
-                                    class="d-inline"
-                                    onsubmit="return confirm('Are you sure you want to delete this employee?')">
-
-                                    @csrf
-                                    @method('DELETE')
-
-                                    <button type="submit"
-                                            class="btn btn-sm btn-outline-danger">
-                                        Delete
+                                    <!-- EDIT BUTTON -->
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary edit-employee-btn"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#editEmployeeModal"
+                                        data-id="{{ $employee->id }}"
+                                        data-user-id-number="{{ $employee->user_id_number }}"
+                                        data-full-name="{{ $employee->full_name }}"
+                                        data-position="{{ $employee->position }}"
+                                        data-job-description="{{ $employee->job_description }}"
+                                        data-office="{{ $employee->office }}"
+                                    >
+                                        Edit
                                     </button>
-                                </form>
+
+                                    <!-- DELETE FORM -->
+                                    <form
+                                        action="{{ route('employees.destroy', $employee->id) }}"
+                                        method="POST"
+                                        onsubmit="return confirm('Are you sure you want to delete this employee?');"
+                                    >
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button type="submit"
+                                                class="btn btn-sm btn-outline-danger">
+                                            Delete
+                                        </button>
+                                    </form>
+
+                                </div>
                             </td>
                         </tr>
+
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-secondary">
-                                No employee records found.
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <h5>No Employee Records Found</h5>
+                                    <p class="mb-0">
+                                        There are no employee records available.
+                                        Click Create Employee to add a new record.
+                                    </p>
+                                </div>
                             </td>
                         </tr>
                     @endforelse
                 </tbody>
+
             </table>
         </div>
 
+        <!-- PAGINATION -->
         <div class="mt-3">
             {{ $employees->links('pagination::bootstrap-5') }}
         </div>
 
     </div>
-
 </main>
 
 <!-- CREATE EMPLOYEE MODAL -->
 <div class="modal fade" id="createEmployeeModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
 
             <div class="modal-header">
@@ -334,32 +385,45 @@
 
                         <div class="col-md-6">
                             <label class="form-label">ID Number *</label>
-                            <input type="text" name="user_id_number"
-                                   class="form-control" required>
+                            <input type="text"
+                                   name="user_id_number"
+                                   class="form-control"
+                                   placeholder="Enter employee ID number"
+                                   required>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Employee Name *</label>
-                            <input type="text" name="full_name"
-                                   class="form-control" required>
+                            <label class="form-label">Full Name *</label>
+                            <input type="text"
+                                   name="full_name"
+                                   class="form-control"
+                                   placeholder="Enter employee full name"
+                                   required>
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Position</label>
-                            <input type="text" name="position"
-                                   class="form-control">
+                            <input type="text"
+                                   name="position"
+                                   class="form-control"
+                                   placeholder="Enter position">
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Office *</label>
-                            <input type="text" name="office"
-                                   class="form-control" required>
+                            <input type="text"
+                                   name="office"
+                                   class="form-control"
+                                   placeholder="Enter office"
+                                   required>
                         </div>
 
                         <div class="col-12">
                             <label class="form-label">Job Description</label>
                             <textarea name="job_description"
-                                      class="form-control" rows="3"></textarea>
+                                      class="form-control"
+                                      rows="3"
+                                      placeholder="Enter job description"></textarea>
                         </div>
 
                     </div>
@@ -383,14 +447,14 @@
 
 <!-- EDIT EMPLOYEE MODAL -->
 <div class="modal fade" id="editEmployeeModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
 
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title fw-bold">Edit Employee</h5>
                     <small class="text-secondary">
-                        Update employee information.
+                        Update the selected employee information.
                     </small>
                 </div>
 
@@ -407,37 +471,45 @@
 
                         <div class="col-md-6">
                             <label class="form-label">ID Number *</label>
-                            <input type="text" name="user_id_number"
+                            <input type="text"
+                                   name="user_id_number"
                                    id="edit_user_id_number"
-                                   class="form-control" required>
+                                   class="form-control"
+                                   required>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Employee Name *</label>
-                            <input type="text" name="full_name"
+                            <label class="form-label">Full Name *</label>
+                            <input type="text"
+                                   name="full_name"
                                    id="edit_full_name"
-                                   class="form-control" required>
+                                   class="form-control"
+                                   required>
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Position</label>
-                            <input type="text" name="position"
+                            <input type="text"
+                                   name="position"
                                    id="edit_position"
                                    class="form-control">
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Office *</label>
-                            <input type="text" name="office"
+                            <input type="text"
+                                   name="office"
                                    id="edit_office"
-                                   class="form-control" required>
+                                   class="form-control"
+                                   required>
                         </div>
 
                         <div class="col-12">
                             <label class="form-label">Job Description</label>
                             <textarea name="job_description"
                                       id="edit_job_description"
-                                      class="form-control" rows="3"></textarea>
+                                      class="form-control"
+                                      rows="3"></textarea>
                         </div>
 
                     </div>
@@ -462,21 +534,24 @@
 <!-- BOOTSTRAP JAVASCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+<!-- EDIT EMPLOYEE JAVASCRIPT -->
 <script>
-    // Populate the edit modal
+    const employeeBaseUrl = @json(url('/employees'));
+
     document.querySelectorAll('.edit-employee-btn').forEach(button => {
+
         button.addEventListener('click', function () {
 
             const id = this.dataset.id;
 
             document.getElementById('editEmployeeForm').action =
-                "{{ url('/employees') }}/" + id;
+                `${employeeBaseUrl}/${id}`;
 
             document.getElementById('edit_user_id_number').value =
-                this.dataset.userId || '';
+                this.dataset.userIdNumber || '';
 
             document.getElementById('edit_full_name').value =
-                this.dataset.name || '';
+                this.dataset.fullName || '';
 
             document.getElementById('edit_position').value =
                 this.dataset.position || '';
@@ -485,8 +560,9 @@
                 this.dataset.office || '';
 
             document.getElementById('edit_job_description').value =
-                this.dataset.description || '';
+                this.dataset.jobDescription || '';
         });
+
     });
 </script>
 

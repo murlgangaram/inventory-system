@@ -15,10 +15,10 @@ class Employee extends Model
         'office',
     ];
 
-    // All equipment assignment records for this employee
+    // All equipment assignment records
     public function assignments(): HasMany
     {
-        return $this->hasMany(EquipmentAssignment::class);
+        return $this->hasMany(Assignment::class);
     }
 
     // Equipment currently assigned to this employee

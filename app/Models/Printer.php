@@ -20,13 +20,10 @@ class Printer extends Model
     // Assignment history for this printer
     public function assignments(): MorphMany
     {
-        return $this->morphMany(
-            EquipmentAssignment::class,
-            'equipment'
-        );
+        return $this->morphMany(Assignment::class, 'equipment');
     }
 
-    // Current assignment history
+    // Current active assignment
     public function activeAssignments(): MorphMany
     {
         return $this->assignments()
